@@ -1,7 +1,7 @@
 class JobQueue
 {
     public delegate void Job();
-    private Queue<Job> queue;
+    private Queue<Task> queue;
     private object isRunningLock;
     private bool isRunning;
     private int concurrentJobThreshold;
@@ -10,7 +10,7 @@ class JobQueue
 
     public JobQueue(int concurrentJobThreshold = 1)
     {
-        this.queue = new Queue<Job>();
+        this.queue = new Queue<Task>();
         this.isRunningLock = new object();
         this.isRunning = false;
         this.concurrentJobThreshold = concurrentJobThreshold;
@@ -36,22 +36,28 @@ class JobQueue
 
     public void WaitForAllJobs()
     {
-        this.runTask?.Wait();
+        var jobs = new List<Task>();
 
-        Task[] jobsArr;
-        lock (this.concurrentJobs) 
+        // Wait for jobs in queue
+        lock (this.queue)
         {
-            jobsArr = this.concurrentJobs.ToArray();
+            jobs.AddRange(this.queue);
         }
 
-        Task.WaitAll(jobsArr);
+        // Wait for currently running jobs
+        lock (this.concurrentJobs) 
+        {
+            jobs.AddRange(this.concurrentJobs);
+        }
+
+        Task.WaitAll(jobs.ToArray());
     }
 
     public void Enqueue(Job job)
     {
         lock (this.queue)
         {
-            this.queue.Enqueue(job);
+            this.queue.Enqueue(new Task(() => job()));
         }
 
         lock (this.isRunningLock)
@@ -59,16 +65,8 @@ class JobQueue
             if (!this.isRunning)
             {
                 this.isRunning = true;
-                this.runTask = Task.Run(this.Run);
+                Task.Run(this.Run);
             }
-        }
-    }
-
-    private bool IsConcurrentJobsEmpty()
-    {
-        lock (this.concurrentJobs)
-        {
-            return this.concurrentJobs.Count == 0;
         }
     }
 
@@ -101,15 +99,15 @@ class JobQueue
     private void RunNextJob()
     {
         var job = this.Dequeue();
-        var runningJob = Task.Run(() => job());
+        job.Start();
         lock (this.concurrentJobs)
         {
-            this.concurrentJobs.Add(runningJob);
-            runningJob.ContinueWith(_ => this.PostJobCleanup(runningJob));
+            this.concurrentJobs.Add(job);
+            job.ContinueWith(_ => this.PostJobCleanup(job));
         }
     }
 
-    private Job Dequeue()
+    private Task Dequeue()
     {
         lock (this.queue)
         {
