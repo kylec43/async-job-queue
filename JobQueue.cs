@@ -109,7 +109,7 @@ class JobQueue
     {
         lock (this.concurrentJobs)
         {
-            this.concurrentJobs.RemoveAll(task => task.IsCompleted);
+            this.concurrentJobs.RemoveAll(job => job.IsCompleted);
         }
     }
 
