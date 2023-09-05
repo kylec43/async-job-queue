@@ -74,7 +74,7 @@ class JobQueue
             if (this.IsAtConcurrentJobThreshold())
             {
                 this.WaitForAnyRunningJobToComplete();
-                this.removeCompletedJobs();
+                this.RemoveCompletedJobs();
             }
 
             this.RunNextJob();
@@ -105,7 +105,7 @@ class JobQueue
         Task.WaitAny(concurrentJobsArr);
     }
 
-    private void removeCompletedJobs()
+    private void RemoveCompletedJobs()
     {
         lock (this.concurrentJobs)
         {
