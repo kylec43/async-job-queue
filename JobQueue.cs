@@ -6,6 +6,7 @@ class JobQueue
     private bool isRunning;
     private int concurrentJobThreshold;
     private List<Task> concurrentJobs;
+    private Task? runTask;
 
     public JobQueue(int concurrentJobThreshold = 1)
     {
@@ -14,6 +15,7 @@ class JobQueue
         this.isRunning = false;
         this.concurrentJobThreshold = concurrentJobThreshold;
         this.concurrentJobs = new List<Task>();
+        this.runTask = null;
     }
 
     public bool IsEmpty()
@@ -34,10 +36,14 @@ class JobQueue
 
     public void WaitForAllJobs()
     {
-        while (!this.IsEmpty() || !this.IsConcurrentJobsEmpty())
-        {
-            Thread.Yield();
+        this.runTask?.Wait();
+
+        Task[] jobsArr;
+        lock (this.concurrentJobs) {
+            jobsArr = this.concurrentJobs.ToArray();
         }
+
+        Task.WaitAll(jobsArr);
     }
 
     public void Enqueue(Job job)
@@ -52,7 +58,7 @@ class JobQueue
             if (!this.isRunning)
             {
                 this.isRunning = true;
-                Task.Run(this.Run);
+                this.runTask = Task.Run(this.Run);
             }
         }
     }
