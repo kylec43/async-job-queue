@@ -2,6 +2,7 @@ class JobQueue
 {
     public delegate void Job();
     private Queue<Job> queue;
+    private object isRunningLock;
     private bool isRunning;
     private int concurrentJobThreshold;
     private List<Task> concurrentJobs;
@@ -9,6 +10,7 @@ class JobQueue
     public JobQueue(int concurrentJobThreshold = 1)
     {
         this.queue = new Queue<Job>();
+        this.isRunningLock = new object();
         this.isRunning = false;
         this.concurrentJobThreshold = concurrentJobThreshold;
         this.concurrentJobs = new List<Task>();
@@ -45,10 +47,13 @@ class JobQueue
             this.queue.Enqueue(job);
         }
 
-        if (!this.isRunning)
+        lock (this.isRunningLock)
         {
-            this.isRunning = true;
-            Task.Run(this.Run);
+            if (!this.isRunning)
+            {
+                this.isRunning = true;
+                Task.Run(this.Run);
+            }
         }
     }
 
@@ -72,7 +77,10 @@ class JobQueue
             this.RunNextJob();
         }
 
-        this.isRunning = false;
+        lock (this.isRunningLock)
+        {
+            this.isRunning = false;
+        }
     }
 
     private bool IsAtConcurrentJobThreshold()
