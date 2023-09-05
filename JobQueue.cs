@@ -39,7 +39,8 @@ class JobQueue
         this.runTask?.Wait();
 
         Task[] jobsArr;
-        lock (this.concurrentJobs) {
+        lock (this.concurrentJobs) 
+        {
             jobsArr = this.concurrentJobs.ToArray();
         }
 
