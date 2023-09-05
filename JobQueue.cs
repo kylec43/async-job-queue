@@ -1,12 +1,10 @@
 class JobQueue
 {
-    public delegate void Job();
     private Queue<Task> queue;
     private object isRunningLock;
     private bool isRunning;
     private int concurrentJobThreshold;
     private List<Task> concurrentJobs;
-    private Task? runTask;
 
     public JobQueue(int concurrentJobThreshold = 1)
     {
@@ -15,7 +13,6 @@ class JobQueue
         this.isRunning = false;
         this.concurrentJobThreshold = concurrentJobThreshold;
         this.concurrentJobs = new List<Task>();
-        this.runTask = null;
     }
 
     public bool IsEmpty()
@@ -53,11 +50,11 @@ class JobQueue
         Task.WaitAll(jobs.ToArray());
     }
 
-    public void Enqueue(Job job)
+    public void Enqueue(Action job)
     {
         lock (this.queue)
         {
-            this.queue.Enqueue(new Task(() => job()));
+            this.queue.Enqueue(new Task(job));
         }
 
         lock (this.isRunningLock)
