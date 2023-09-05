@@ -71,9 +71,10 @@ class JobQueue
     {
         while (!this.IsEmpty())
         {
-            while (this.IsAtConcurrentJobThreshold())
+            if (this.IsAtConcurrentJobThreshold())
             {
-                Thread.Yield();
+                this.WaitForAnyRunningJobToComplete();
+                this.removeCompletedJobs();
             }
 
             this.RunNextJob();
@@ -93,6 +94,25 @@ class JobQueue
         }
     }
 
+    private void WaitForAnyRunningJobToComplete()
+    {
+        Task[] concurrentJobsArr;
+        lock (this.concurrentJobs) 
+        {
+            concurrentJobsArr = this.concurrentJobs.ToArray();
+        }
+
+        Task.WaitAny(concurrentJobsArr);
+    }
+
+    private void removeCompletedJobs()
+    {
+        lock (this.concurrentJobs)
+        {
+            this.concurrentJobs.RemoveAll(task => task.IsCompleted);
+        }
+    }
+
     private void RunNextJob()
     {
         var job = this.Dequeue();
@@ -100,7 +120,6 @@ class JobQueue
         lock (this.concurrentJobs)
         {
             this.concurrentJobs.Add(job);
-            job.ContinueWith(_ => this.PostJobCleanup(job));
         }
     }
 
@@ -109,14 +128,6 @@ class JobQueue
         lock (this.queue)
         {
             return this.queue.Dequeue();
-        }
-    }
-
-    private void PostJobCleanup(Task task)
-    {
-        lock (this.concurrentJobs)
-        {
-            this.concurrentJobs.Remove(task);
         }
     }
 }
